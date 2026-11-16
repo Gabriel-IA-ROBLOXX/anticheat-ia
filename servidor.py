@@ -8,6 +8,9 @@ import os
 app = Flask(__name__)
 DB_FILE = "anticheat.db"
 
+# SUA SENHA SECRETA DE DONO (Mude se quiser, só você sabe ela)
+SENHA_DONO = "GABRIEL_DONO_2026"
+
 PERFIS_PADRAO = {
     "TYCOON": {"vel_max": 24, "teleporte_dist": 65, "pulos_ar_max": 1, "altura_pulo_max": 12, "cps_max": 12},
     "SIMULADOR": {"vel_max": 60, "teleporte_dist": 120, "pulos_ar_max": 2, "altura_pulo_max": 25, "cps_max": 18},
@@ -53,7 +56,7 @@ HTML_PAINEL = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Anti-Cheat IA Cloud 4.0</title>
+    <title>Anti-Cheat IA Cloud 4.1</title>
     <meta http-equiv="refresh" content="5">
     <style>
         body { font-family: Arial; padding: 20px; background: #0d1117; color: #c9d1d9; }
@@ -61,6 +64,7 @@ HTML_PAINEL = """
         h1, h3 { color: #58a6ff; margin-top: 0; }
         input, select { padding: 8px; border-radius: 5px; border: 1px solid #30363d; background: #21262d; color: white; margin: 4px; }
         button { padding: 9px 15px; border-radius: 5px; background: #238636; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .btn-red { background: #da3633; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid #30363d; }
         .ban { color: #ff7b72; font-weight: bold; }
@@ -69,16 +73,20 @@ HTML_PAINEL = """
 </head>
 <body>
     <div class="card">
-        <h1>Anti-Cheat IA Cloud 4.0</h1>
+        <h1>🛡️ Anti-Cheat IA Cloud</h1>
         <form method="GET" action="/">
-            Chave: <input type="text" name="chave" value="{{ chave }}">
-            <button type="submit">Entrar</button>
+            Chave do Cliente: <input type="text" name="chave" value="{{ chave }}" placeholder="Cole sua chave aqui">
+            <button type="submit">Acessar Painel</button>
         </form>
-        <form method="POST" action="/novo_cliente" style="margin-top:10px;">
+        <hr style="border-color: #30363d; margin: 15px 0;">
+        <form method="POST" action="/novo_cliente">
+            <strong>Área do Administrador:</strong><br>
+            <input type="password" name="senha_admin" placeholder="Senha Mestra de Dono" required>
             <input type="text" name="novo_nome" placeholder="Nome do Jogo" required>
-            <input type="text" name="nova_chave" placeholder="Nova Chave" required>
-            <button type="submit">+ Criar Cliente</button>
+            <input type="text" name="nova_chave" placeholder="Criar Nova Chave" required>
+            <button type="submit">+ Gerar Chave</button>
         </form>
+        {% if erro %}<p style="color:#ff7b72;">{{ erro }}</p>{% endif %}
     </div>
 
     {% if cliente %}
@@ -127,15 +135,25 @@ HTML_PAINEL = """
 
 @app.route("/", methods=["GET"])
 def painel():
-    chave = request.args.get("chave", "CHAVE_DEMO_2026")
-    conn = get_db()
-    cliente = conn.execute("SELECT * FROM clientes WHERE chave = ?", (chave,)).fetchone()
-    logs = conn.execute("SELECT * FROM logs WHERE chave = ? ORDER BY id DESC LIMIT 25", (chave,)).fetchall()
-    conn.close()
-    return render_template_string(HTML_PAINEL, chave=chave, cliente=cliente, logs=logs)
+    chave = request.args.get("chave", "")
+    erro = request.args.get("erro", "")
+    cliente = None
+    logs = []
+    if chave:
+        conn = get_db()
+        cliente = conn.execute("SELECT * FROM clientes WHERE chave = ?", (chave,)).fetchone()
+        logs = conn.execute("SELECT * FROM logs WHERE chave = ? ORDER BY id DESC LIMIT 25", (chave,)).fetchall()
+        conn.close()
+        if not cliente:
+            erro = "Chave invalida ou expirada!"
+    return render_template_string(HTML_PAINEL, chave=chave, cliente=cliente, logs=logs, erro=erro)
 
 @app.route("/novo_cliente", methods=["POST"])
 def novo_cliente():
+    senha = request.form.get("senha_admin", "")
+    if senha != SENHA_DONO:
+        return '<script>window.location.href="/?erro=Senha+de+Dono+Incorreta!";</script>'
+    
     nome = request.form.get("novo_nome")
     nova_chave = request.form.get("nova_chave").strip()
     if nova_chave:
