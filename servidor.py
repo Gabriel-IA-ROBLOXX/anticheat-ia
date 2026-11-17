@@ -7,7 +7,9 @@ import os
 
 app = Flask(__name__)
 DB_FILE = "anticheat.db"
-SENHA_DONO = "GABRIEL_DONO_2026"
+
+SENHA_DONO = os.environ.get("SENHA_DONO", "G@BR1EL#._")
+ROTA_ADMIN = "/" + os.environ.get("ROTA_ADMIN", "corinthians").lstrip("/")
 
 PERFIS_PADRAO = {
     "TYCOON": {"vel_max": 24, "teleporte_dist": 65, "pulos_ar_max": 1, "altura_pulo_max": 12, "cps_max": 12},
@@ -49,7 +51,6 @@ lista_treino = (
 )
 modelo_ia = IsolationForest(contamination=0.1, random_state=42)
 modelo_ia.fit(np.array(lista_treino))
-
 HTML_PAINEL = """
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -68,15 +69,13 @@ HTML_PAINEL = """
         .card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 14px; padding: 24px; margin-bottom: 22px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         .card h3 { margin-top: 0; color: #f8fafc; font-size: 1.15rem; border-bottom: 1px solid rgba(148, 163, 184, 0.15); padding-bottom: 12px; }
         .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-        input[type=text], input[type=password], input[type=number], select {
-            background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 10px 14px; border-radius: 8px; font-size: 0.95rem; outline: none;
-        }
+        input[type=text], input[type=password], input[type=number], select { background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 10px 14px; border-radius: 8px; font-size: 0.95rem; outline: none; }
         input:focus, select:focus { border-color: #38bdf8; }
         button { background: linear-gradient(135deg, #2563eb, #4f46e5); color: white; border: none; padding: 11px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
-        button:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-green { background: linear-gradient(135deg, #059669, #10b981); }
+        .btn-red { background: linear-gradient(135deg, #dc2626, #ef4444); padding: 6px 12px; font-size: 0.85rem; }
         .grid-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin: 18px 0; }
-        .input-box label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .input-box label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; text-transform: uppercase; }
         .input-box input { width: 100%; font-weight: bold; text-align: center; font-size: 1.05rem; }
         .toggles { display: flex; gap: 20px; flex-wrap: wrap; background: #0f172a; padding: 14px; border-radius: 8px; margin-bottom: 18px; }
         .toggles label { cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.92rem; }
@@ -90,15 +89,11 @@ HTML_PAINEL = """
         @media (max-width: 768px) {
             body { padding: 18px 10px; }
             .header h1 { font-size: 2.1rem; }
-            .header p { font-size: 1.05rem; }
             .card { padding: 20px 16px; }
-            .card h3 { font-size: 1.3rem; }
             input[type=text], input[type=password], input[type=number], select, button { width: 100% !important; font-size: 1.15rem; padding: 15px; }
+            .btn-red { width: auto !important; padding: 8px 14px; font-size: 0.95rem; }
             .grid-inputs { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-            .input-box label { font-size: 0.9rem; }
-            .input-box input { font-size: 1.25rem; }
             .toggles { flex-direction: column; gap: 16px; }
-            .toggles label { font-size: 1.1rem; }
             .toggles input[type=checkbox] { width: 22px; height: 22px; }
             th, td { font-size: 1rem; padding: 12px 8px; }
         }
@@ -111,6 +106,7 @@ HTML_PAINEL = """
         <p>Proteção comportamental em tempo real com auto-calibração neural para Roblox</p>
     </div>
 
+    {% if not admin_mode %}
     <div class="card">
         <form method="GET" action="/" class="row" style="justify-content: center;">
             <input type="text" name="chave" value="{{ chave }}" placeholder="Insira sua Chave de Licença..." style="width: 280px;">
@@ -118,19 +114,50 @@ HTML_PAINEL = """
         </form>
         {% if erro %}<p style="color:#f87171; text-align:center; margin-bottom:0;">{{ erro }}</p>{% endif %}
     </div>
+    {% endif %}
 
     {% if admin_mode %}
     <div class="card" style="border-color: #38bdf8;">
-        <h3>🔑 Área Exclusiva do Administrador (Gerador de Chaves)</h3>
-        <form method="POST" action="/novo_cliente" class="row">
-            <input type="password" name="senha_admin" placeholder="Senha Mestra" required>
+        <h3>🔑 Central do Administrador (Criar e Gerenciar Clientes)</h3>
+        <form method="POST" action="{{ rota_admin }}/criar" class="row">
+            <input type="password" name="senha_admin" value="{{ senha_digitada }}" placeholder="Senha Mestra" required>
             <input type="text" name="novo_nome" placeholder="Nome do Jogo do Cliente" required>
             <input type="text" name="nova_chave" placeholder="Nova Chave (ex: VIP_01)" required>
             <button type="submit" class="btn-green">+ Gerar Licença</button>
         </form>
+        {% if erro %}<p style="color:#f87171; margin-bottom:0;">{{ erro }}</p>{% endif %}
+        {% if sucesso %}<p style="color:#34d399; margin-bottom:0; font-weight:bold;">{{ sucesso }}</p>{% endif %}
+    </div>
+
+    <div class="card">
+        <h3>📋 Clientes Ativos no Sistema</h3>
+        <form method="POST" action="{{ rota_admin }}" class="row" style="margin-bottom:15px;">
+            <input type="password" name="senha_admin" value="{{ senha_digitada }}" placeholder="Digite sua Senha Mestra para listar/revogar">
+            <button type="submit">Desbloquear Lista</button>
+        </form>
+        {% if lista_clientes %}
+        <div class="table-wrap">
+            <table>
+                <tr><th>Jogo</th><th>Chave</th><th>Categoria</th><th>Ação</th></tr>
+                {% for c in lista_clientes %}
+                <tr>
+                    <td><strong>{{ c['nome_cliente'] }}</strong></td>
+                    <td style="color:#38bdf8;">{{ c['chave'] }}</td>
+                    <td>{{ c['modo'] }}</td>
+                    <td>
+                        <form method="POST" action="{{ rota_admin }}/revogar" style="margin:0;">
+                            <input type="hidden" name="senha_admin" value="{{ senha_digitada }}">
+                            <input type="hidden" name="chave_alvo" value="{{ c['chave'] }}">
+                            <button type="submit" class="btn-red">Revogar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
-
     {% if cliente %}
     <div class="card">
         <div class="row" style="justify-content: space-between; border-bottom: 1px solid rgba(148,163,184,0.15); padding-bottom: 12px; margin-bottom: 16px;">
@@ -207,28 +234,55 @@ def painel():
             erro = "Chave de licença inválida ou não encontrada."
     return render_template_string(HTML_PAINEL, chave=chave, cliente=cliente, logs=logs, erro=erro, admin_mode=False)
 
-@app.route("/admin", methods=["GET"])
+@app.route(ROTA_ADMIN, methods=["GET", "POST"])
 def painel_admin():
-    erro = request.args.get("erro", "")
-    return render_template_string(HTML_PAINEL, chave="", cliente=None, logs=[], erro=erro, admin_mode=True)
+    senha = request.form.get("senha_admin", "")
+    erro = ""
+    lista_clientes = []
+    if request.method == "POST":
+        if senha == SENHA_DONO:
+            conn = get_db()
+            lista_clientes = conn.execute("SELECT chave, nome_cliente, modo FROM clientes").fetchall()
+            conn.close()
+        else:
+            erro = "Senha Mestra incorreta!"
+    return render_template_string(HTML_PAINEL, chave="", cliente=None, logs=[], erro=erro, sucesso="", admin_mode=True, rota_admin=ROTA_ADMIN, senha_digitada=senha, lista_clientes=lista_clientes)
 
-@app.route("/novo_cliente", methods=["POST"])
-def novo_cliente():
+@app.route(ROTA_ADMIN + "/criar", methods=["POST"])
+def criar_cliente():
     senha = request.form.get("senha_admin", "")
     if senha != SENHA_DONO:
-        return '<script>window.location.href="/admin?erro=Senha+de+Administrador+Incorreta!";</script>'
+        return render_template_string(HTML_PAINEL, chave="", cliente=None, logs=[], erro="Senha Mestra incorreta!", sucesso="", admin_mode=True, rota_admin=ROTA_ADMIN, senha_digitada="", lista_clientes=[])
     
     nome = request.form.get("novo_nome")
     nova_chave = request.form.get("nova_chave").strip()
+    sucesso = ""
+    erro = ""
+    conn = get_db()
     if nova_chave:
-        conn = get_db()
         try:
             conn.execute("INSERT INTO clientes VALUES (?, ?, 'TYCOON', 24, 65, 1, 12, 12, 0, 0, 1)", (nova_chave, nome))
             conn.commit()
+            sucesso = f"Licença '{nova_chave}' criada para '{nome}'! Você continua no painel de Dono."
         except sqlite3.IntegrityError:
-            pass
+            erro = "Essa chave já existe! Escolha outro código."
+    lista_clientes = conn.execute("SELECT chave, nome_cliente, modo FROM clientes").fetchall()
+    conn.close()
+    return render_template_string(HTML_PAINEL, chave="", cliente=None, logs=[], erro=erro, sucesso=sucesso, admin_mode=True, rota_admin=ROTA_ADMIN, senha_digitada=senha, lista_clientes=lista_clientes)
+
+@app.route(ROTA_ADMIN + "/revogar", methods=["POST"])
+def revogar_cliente():
+    senha = request.form.get("senha_admin", "")
+    chave_alvo = request.form.get("chave_alvo", "")
+    if senha == SENHA_DONO and chave_alvo:
+        conn = get_db()
+        conn.execute("DELETE FROM clientes WHERE chave = ?", (chave_alvo,))
+        conn.execute("DELETE FROM logs WHERE chave = ?", (chave_alvo,))
+        conn.commit()
+        lista_clientes = conn.execute("SELECT chave, nome_cliente, modo FROM clientes").fetchall()
         conn.close()
-    return f'<script>window.location.href="/?chave={nova_chave}";</script>'
+        return render_template_string(HTML_PAINEL, chave="", cliente=None, logs=[], erro="", sucesso=f"Chave '{chave_alvo}' revogada e removida!", admin_mode=True, rota_admin=ROTA_ADMIN, senha_digitada=senha, lista_clientes=lista_clientes)
+    return "Acesso negado", 403
 
 @app.route("/salvar_config", methods=["POST"])
 def salvar_config():
